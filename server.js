@@ -4,49 +4,10 @@ const cfenv = require("cfenv");
 const bodyParser = require('body-parser')
 const session = require("express-session");
 const passport = require("passport");
+const redis = require('redis');
+const RedisStore = require('connect-redis')(session);
 const WebAppStrategy = require("bluemix-appid").WebAppStrategy;
 const CALLBACK_URL = "/ibm/bluemix/appid/callback";
-app.use(session({
-   secret: "123456",
-   resave: true,
-   saveUninitialized: true
- }));
-app.use(passport.initialize());
- app.use(passport.session());
-
- passport.use(new WebAppStrategy());
-passport.serializeUser(function(user, cb) {
-   cb(null, user);
- });
-
- passport.deserializeUser(function(obj, cb) {
-   cb(null, obj);
- });
-
-// parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: false }))
-
-// parse application/json
-app.use(bodyParser.json())
-
-var mydb;
-
-// Callback to complete login process
-app.get(CALLBACK_URL, passport.authenticate(WebAppStrategy.STRATEGY_NAME));
-
-// Simple protected route that greets user by name and adds to database if bound to app
-app.get("/protected", passport.authenticate(WebAppStrategy.STRATEGY_NAME), function(req, res) {
-         if (!mydb) {
-           res.send("Hello " + req.user.name + "!")
-         } else {
-           mydb.insert({ "name" : req.user.name }, function(err, body, header) {
-             if (err) {
-               return console.log('[mydb.insert] ', err.message);
-             }
-             res.send("Hello " + req.user.name + "! I added you to the database.");
-           });
-         }
- });
 
 /* Endpoint to greet and add a new visitor to database.
 * Send a POST request to localhost:3000/api/visitors with body
@@ -140,6 +101,64 @@ if (appEnv.services['cloudantNoSQLDB'] || appEnv.getService(/cloudant/)) {
 //serve static file (index.html, images, css)
 app.use(express.static(__dirname + '/views'));
 
+// additions for App ID support
+// get configuration for redis backing service and connect to service
+const redisConfig = appEnv.getService(/Redis.*/)
+const redisPort = redisConfig.credentials.port;
+const redisHost = redisConfig.credentials.hostname;
+const redisPasswd = redisConfig.credentials.password;
+
+var redisclient = redis.createClient(redisPort, redisHost, {no_ready_check: true});
+redisclient.auth(redisPasswd, function (err) {
+    if (err) {
+      throw err;
+    }
+});
+
+redisclient.on('connect', function() {
+    console.log('Connected to Redis');
+});
+
+app.use(session({
+   store: new RedisStore({ client: redisclient }),
+   secret: "123456",
+   resave: true,
+   saveUninitialized: true
+ }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(new WebAppStrategy());
+passport.serializeUser(function(user, cb) {
+   cb(null, user);
+ });
+
+ passport.deserializeUser(function(obj, cb) {
+   cb(null, obj);
+ });
+
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
+
+// parse application/json
+app.use(bodyParser.json())
+
+// Callback to complete login process
+app.get(CALLBACK_URL, passport.authenticate(WebAppStrategy.STRATEGY_NAME));
+
+// Simple protected route that greets user by name and adds to database if bound to app
+app.get("/protected", passport.authenticate(WebAppStrategy.STRATEGY_NAME), function(req, res) {
+         if (!mydb) {
+           res.send("Hello " + req.user.name + "!")
+         } else {
+           mydb.insert({ "name" : req.user.name }, function(err, body, header) {
+             if (err) {
+               return console.log('[mydb.insert] ', err.message);
+             }
+             res.send("Hello " + req.user.name + "! I added you to the database.");
+           });
+         }
+ });
 
 
 var port = process.env.PORT || 3000
