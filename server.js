@@ -9,6 +9,8 @@ const RedisStore = require('connect-redis')(session);
 const WebAppStrategy = require("bluemix-appid").WebAppStrategy;
 const CALLBACK_URL = "/ibm/bluemix/appid/callback";
 
+var mydb;
+
 /* Endpoint to greet and add a new visitor to database.
 * Send a POST request to localhost:3000/api/visitors with body
 * {
