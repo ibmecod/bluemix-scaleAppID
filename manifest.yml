@@ -1,0 +1,5 @@
+---
+applications:
+ - name: scaleAppID-tor1803
+   host: scaleAppID-tor1803
+   memory: 128M
