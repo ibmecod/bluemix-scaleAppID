@@ -7,6 +7,12 @@ const passport = require("passport");
 const WebAppStrategy = require("bluemix-appid").WebAppStrategy;
 const CALLBACK_URL = "/ibm/bluemix/appid/callback";
 
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
+
+// parse application/json
+app.use(bodyParser.json())
+
 var mydb;
 
 /* Endpoint to greet and add a new visitor to database.
